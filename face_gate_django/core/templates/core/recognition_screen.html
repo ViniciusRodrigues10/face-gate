@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid recognition-container">
+    <div class="row">
+        <div class="col-md-8 video-container">
+            <h3 class="text-center mb-4">Sistema de Reconhecimento</h3>
+            <div class="camera-wrapper">
+                <img src="{% url 'video_feed' %}" class="live-camera-feed">
+            </div>
+            <div class="text-center mt-3">
+                <a href="{% url 'index' %}" class="btn btn-danger">Voltar</a>
+            </div>
+        </div>
+        <div class="col-md-4 status-panel">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Status do Sistema</h4>
+                </div>
+                <div class="card-body">
+                    <div class="status-item">
+                        <h5>Reconhecimento Facial:</h5>
+                        <div class="status-indicator">
+                            <span id="face-status" class="status-text">Analisando...</span>
+                        </div>
+                    </div>
+                    <div class="status-item">
+                        <h5>Estado da Mão:</h5>
+                        <div class="status-indicator">
+                            <span id="hand-status" class="status-text">Não detectado</span>
+                        </div>
+                    </div>
+                    <div class="status-item">
+                        <h5>Status do Portão:</h5>
+                        <div class="status-indicator">
+                            <span id="gate-status" class="status-text">Fechado</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4 instructions-card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Instruções</h4>
+                </div>
+                <div class="card-body">
+                    <ol class="instruction-list">
+                        <li>Posicione seu rosto diante da câmera</li>
+                        <li>Mostre a mão aberta para liberar o acesso</li>
+                        <li>O portão será aberto automaticamente</li>
+                        <li>Mantenha a mão visível para acesso contínuo</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .recognition-container {
+        padding: 20px;
+        height: 100vh;
+    }
+    .video-container {
+        padding: 20px;
+    }
+    .camera-wrapper {
+        border: 3px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        padding-bottom: 75%; /* Aspect ratio 4:3 */
+        height: 0;
+    }
+    .live-camera-feed {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .status-panel {
+        padding: 20px;
+    }
+    .status-item {
+        margin-bottom: 25px;
+    }
+    .status-indicator {
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+    }
+    .status-text {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .instructions-card {
+        margin-top: 30px;
+    }
+    .instruction-list {
+        padding-left: 20px;
+    }
+    .instruction-list li {
+        margin-bottom: 10px;
+    }
+</style>
+
+<script>
+    // Função para analisar o frame e extrair informações
+    function analyzeFrame() {
+        // Esta função seria implementada com WebSocket ou outra técnica
+        // para comunicação em tempo real com o servidor
+        // Por simplicidade, vamos simular a atualização
+        
+        // Simulação - na implementação real isso viria do servidor
+        setTimeout(() => {
+            const faceStatus = document.getElementById('face-status');
+            const handStatus = document.getElementById('hand-status');
+            const gateStatus = document.getElementById('gate-status');
+            
+            // Simula diferentes estados
+            const states = [
+                {face: "Não reconhecido", hand: "Não detectado", gate: "Fechado"},
+                {face: "Allisson Silva", hand: "Aberta", gate: "Aberto"},
+                {face: "Vinícius Gonzaga", hand: "Fechada", gate: "Fechado"}
+            ];
+            
+            const randomState = states[Math.floor(Math.random() * states.length)];
+            
+            faceStatus.textContent = randomState.face;
+            handStatus.textContent = randomState.hand;
+            gateStatus.textContent = randomState.gate;
+            
+            // Atualiza cores
+            faceStatus.className = 'status-text ' + 
+                (randomState.face.includes("Não") ? 'text-danger' : 'text-success');
+            handStatus.className = 'status-text ' + 
+                (randomState.hand === "Aberta" ? 'text-success' : 
+                 randomState.hand === "Fechada" ? 'text-warning' : 'text-secondary');
+            gateStatus.className = 'status-text ' + 
+                (randomState.gate === "Aberto" ? 'text-success' : 'text-danger');
+            
+            // Chama novamente após um intervalo
+            analyzeFrame();
+        }, 2000);
+    }
+    
+    // Inicia a análise quando a página carrega
+    document.addEventListener('DOMContentLoaded', analyzeFrame);
+</script>
+{% endblock %}

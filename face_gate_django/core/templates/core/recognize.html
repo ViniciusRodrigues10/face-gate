@@ -1,0 +1,104 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+    <h1>Reconhecimento Facial</h1>
+    
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+    
+    {% if message %}
+        <div class="{% if recognized %}success{% else %}error{% endif %}">
+            {{ message }}
+        </div>
+    {% endif %}
+    
+    <div class="camera-container">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+    
+    <form method="POST" id="recognizeForm">
+        {% csrf_token %}
+        <input type="hidden" name="image_data" id="image_data">
+        <button type="button" id="recognizeBtn" class="btn">Reconhecer</button>
+        <button type="button" id="autoRecognizeBtn" class="btn">Reconhecimento Automático</button>
+    </form>
+
+    <script>
+        // Elementos da interface
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const recognizeBtn = document.getElementById('recognizeBtn');
+        const autoRecognizeBtn = document.getElementById('autoRecognizeBtn');
+        const imageDataInput = document.getElementById('image_data');
+        const recognizeForm = document.getElementById('recognizeForm');
+        
+        // Variáveis de controle
+        let autoRecognizeInterval = null;
+        let isAutoRecognizing = false;
+        
+        // Inicializa a câmera
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }, 
+                    audio: false 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert(`Erro ao acessar a câmera: ${err.message}`);
+                console.error(err);
+            }
+        }
+        
+        // Captura e envia a imagem para reconhecimento
+        function recognize() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            imageDataInput.value = imageData;
+            
+            recognizeForm.submit();
+        }
+        
+        // Inicia reconhecimento automático
+        function startAutoRecognize() {
+            if (isAutoRecognizing) return;
+            
+            isAutoRecognizing = true;
+            autoRecognizeBtn.textContent = 'Parar Reconhecimento';
+            autoRecognizeInterval = setInterval(recognize, 2000); // 2 segundos
+        }
+        
+        // Para reconhecimento automático
+        function stopAutoRecognize() {
+            isAutoRecognizing = false;
+            autoRecognizeBtn.textContent = 'Reconhecimento Automático';
+            if (autoRecognizeInterval) {
+                clearInterval(autoRecognizeInterval);
+                autoRecognizeInterval = null;
+            }
+        }
+        
+        // Event listeners
+        recognizeBtn.addEventListener('click', recognize);
+        autoRecognizeBtn.addEventListener('click', () => {
+            if (isAutoRecognizing) {
+                stopAutoRecognize();
+            } else {
+                startAutoRecognize();
+            }
+        });
+        
+        // Inicialização
+        window.addEventListener('DOMContentLoaded', initCamera);
+    </script>
+{% endblock %}

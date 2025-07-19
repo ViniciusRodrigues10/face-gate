@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <h2>Sistema de Reconhecimento Facial e de Gestos</h2>
+    <div class="row">
+        <div class="col-md-8">
+            <img src="{% url 'live_camera_feed' %}" width="640" height="480" class="img-fluid">
+        </div>
+        <div class="col-md-4">
+            <div class="status-box">
+                <h4>Status do Portão:</h4>
+                <p id="gate-status">Aguardando reconhecimento...</p>
+            </div>
+            <div class="instructions">
+                <h4>Instruções:</h4>
+                <ol>
+                    <li>Posicione seu rosto diante da câmera</li>
+                    <li>Mostre a mão aberta para liberar o acesso</li>
+                    <li>Mantenha a mão aberta enquanto precisa do acesso</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .status-box {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .instructions {
+        background-color: #e9ecef;
+        padding: 20px;
+        border-radius: 5px;
+    }
+</style>
+
+<script>
+    // Atualiza o status do portão periodicamente (opcional)
+    setInterval(function() {
+        fetch('/check_gate_status/')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('gate-status').innerText = data.status;
+                document.getElementById('gate-status').style.color = data.color;
+            });
+    }, 1000);
+</script>
+{% endblock %}

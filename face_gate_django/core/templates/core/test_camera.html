@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><title>Teste Webcam</title></head>
+<body>
+  <h1>Teste da webcam</h1>
+  <video id="video" width="640" height="480" autoplay playsinline style="border: 1px solid black;"></video>
+
+  <script>
+    const video = document.getElementById('video');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+        console.log('Webcam aberta com sucesso');
+      })
+      .catch(err => {
+        console.error('Erro ao abrir webcam:', err);
+        alert('Erro ao abrir webcam: ' + err.message);
+      });
+  </script>
+</body>
+</html>

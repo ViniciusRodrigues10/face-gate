@@ -1,149 +1,273 @@
 import cv2
 import os
-import uuid
-import base64
-from django.shortcuts import render, redirect
-from .models import UserFace
 import numpy as np
+import mediapipe as mp
+from django.shortcuts import render, redirect
 from django.conf import settings
+from django.contrib import messages
+import pickle
+from .models import UserFace
 from django.core.files.base import ContentFile
+import uuid
 
-MEDIA_DIR = os.path.join(settings.MEDIA_ROOT, 'faces')
+from django.http import StreamingHttpResponse
+from django.views.decorators import gzip
+from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse
 
-SAMPLES_PER_USER = 20  # Número de amostras por pessoa
+# Configurações do MediaPipe para detecção de mãos
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.5
+)
+mp_drawing = mp.solutions.drawing_utils
+# Configurações
+FACE_DETECTOR = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+RECOGNIZER = cv2.face.LBPHFaceRecognizer_create()
+FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'faces')
+os.makedirs(FACES_DIR, exist_ok=True)
+MODEL_PATH = os.path.join(settings.BASE_DIR, 'recognizer/face_model.yml')
+MAPPINGS_PATH = os.path.join(settings.BASE_DIR, 'recognizer/mappings.pkl')
+os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
 
-def index(request):
-    return render(request, 'core/index.html')
+# Variáveis globais inicializadas
+face_samples = []
+ids = []
+name_to_id = {}
+id_to_name = {}
+id_count = 0
+
+def is_hand_open(hand_landmarks):
+    """Verifica se a mão está aberta com base nos landmarks"""
+    # Pontos de referência para os dedos (pontas e junções)
+    tip_ids = [4, 8, 12, 16, 20]  # Polegar, Indicador, Médio, Anelar, Mindinho
+    pip_ids = [3, 6, 10, 14, 18]   # Junções dos dedos
+    
+    fingers = []
+    
+    # Verifica o polegar (comparação diferente por ser mais lateral)
+    if hand_landmarks.landmark[tip_ids[0]].x < hand_landmarks.landmark[pip_ids[0]].x:
+        fingers.append(1)  # Polegar aberto
+    else:
+        fingers.append(0)
+    
+    # Verifica os outros dedos
+    for i in range(1, 5):
+        if hand_landmarks.landmark[tip_ids[i]].y < hand_landmarks.landmark[pip_ids[i]].y:
+            fingers.append(1)  # Dedo aberto
+        else:
+            fingers.append(0)
+    
+    # Considera mão aberta se pelo menos 4 dedos estiverem abertos
+    return sum(fingers) >= 4
+
+def load_model():
+    global RECOGNIZER, id_count, name_to_id, id_to_name
+    
+    if os.path.exists(MODEL_PATH):
+        RECOGNIZER.read(MODEL_PATH)
+        
+    if os.path.exists(MAPPINGS_PATH):
+        with open(MAPPINGS_PATH, 'rb') as f:
+            name_to_id, id_to_name = pickle.load(f)
+            id_count = max(id_to_name.keys(), default=0) + 1
+
+def save_model():
+    RECOGNIZER.write(MODEL_PATH)
+    with open(MAPPINGS_PATH, 'wb') as f:
+        pickle.dump((name_to_id, id_to_name), f)
+
+def preprocess_face(face_img):
+    gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+    return cv2.equalizeHist(gray)
 
 def register_face(request):
+    global id_count
+    
     if request.method == 'POST':
-        name = request.POST['name']
+        name = request.POST.get('name', '').strip()
+        if not name:
+            messages.error(request, "Nome é obrigatório")
+            return redirect('register_face')
+        
         cap = cv2.VideoCapture(0)
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
-        saved = 0
-        os.makedirs(MEDIA_DIR, exist_ok=True)
-
-        while saved < SAMPLES_PER_USER:
+        if not cap.isOpened():
+            messages.error(request, "Não foi possível acessar a câmera")
+            return redirect('register_face')
+        
+        sample_count = 0
+        cv2.namedWindow('Cadastro Facial', cv2.WINDOW_NORMAL)
+        
+        # Cria diretório para o usuário
+        user_dir = os.path.join(FACES_DIR, name.lower().replace(' ', '_'))
+        os.makedirs(user_dir, exist_ok=True)
+        
+        while sample_count < 30:
             ret, frame = cap.read()
             if not ret:
-                break
-
+                continue
+            
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-
+            faces = FACE_DETECTOR.detectMultiScale(gray, 1.3, 5)
+            
             for (x, y, w, h) in faces:
-                roi_color = frame[y:y+h, x:x+w]
-                filename = f"{uuid.uuid4().hex}.png"
-                filepath = os.path.join(MEDIA_DIR, filename)
-                cv2.imwrite(filepath, roi_color)
-                UserFace.objects.create(name=name, image=f"faces/{filename}")
-                saved += 1
-
+                face_roi = preprocess_face(frame[y:y+h, x:x+w])
+                
+                if name not in name_to_id:
+                    name_to_id[name] = id_count
+                    id_to_name[id_count] = name
+                    id_count += 1
+                
+                # Salva a imagem no sistema de arquivos
+                filename = f"{uuid.uuid4().hex}.jpg"
+                filepath = os.path.join(user_dir, filename)
+                
+                # Redimensiona e salva a imagem
+                resized_face = cv2.resize(gray[y:y+h, x:x+w], (200, 200))
+                cv2.imwrite(filepath, resized_face)
+                
+                # Salva no banco de dados
+                user_face = UserFace(name=name)
+                user_face.image.save(filename, ContentFile(open(filepath, 'rb').read()))
+                user_face.save()
+                
+                # Adiciona para treinamento
+                face_samples.append(resized_face)
+                ids.append(name_to_id[name])
+                sample_count += 1
+                
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                cv2.putText(frame, f"Capturado {saved}/{SAMPLES_PER_USER}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-                cv2.imshow('Cadastro Facial', frame)
-                cv2.waitKey(500)
+                cv2.putText(frame, f"Amostras: {sample_count}/30", (10, 30), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            cv2.imshow('Cadastro Facial', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-
+        
         cap.release()
         cv2.destroyAllWindows()
+        
+        if sample_count > 0:
+            RECOGNIZER.train(np.array(face_samples), np.array(ids))
+            save_model()
+            messages.success(request, f"{name} cadastrado com sucesso!")
+        else:
+            messages.warning(request, "Nenhuma face detectada")
+        
         return redirect('index')
-
+    
     return render(request, 'core/register.html')
 
-def train_recognizer():
-    recognizer = cv2.face.LBPHFaceRecognizer_create()
-    faces = []
-    labels = []
-    label_map = {}
-    label_id = 0
-    name_to_label = {}
-
-    for face in UserFace.objects.all():
-        path = os.path.join(settings.MEDIA_ROOT, face.image.name.replace("\\", "/"))
-        if not os.path.exists(path):
-            print(f"Arquivo não encontrado: {path}")
-            continue
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            print(f"Erro ao carregar imagem: {path}")
-            continue
-        if face.name not in name_to_label:
-            name_to_label[face.name] = label_id
-            label_map[label_id] = face.name
-            label_id += 1
-        faces.append(img)
-        labels.append(name_to_label[face.name])
-
-    if not faces:
-        return None, None
-
-    recognizer.train(faces, np.array(labels))
-    return recognizer, label_map
-
-# def recognize_face(request):
-#     recognizer, label_map = train_recognizer()
-#     if recognizer is None:
-#         return render(request, 'core/index.html', {'message': 'Nenhuma face cadastrada para reconhecimento.'})
-
-#     cap = cv2.VideoCapture(0)
-#     ret, frame = cap.read()
-#     cap.release()
-#     if not ret:
-#         return render(request, 'core/index.html', {'message': 'Não foi possível capturar a imagem da webcam.'})
-
-#     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-#     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-
-#     for (x, y, w, h) in faces:
-#         roi = gray[y:y+h, x:x+w]
-#         label, confidence = recognizer.predict(roi)
-#         # Ajuste do limiar para aceitar somente confiável
-#         if confidence < 50:  
-#             name = label_map[label]
-#             return render(request, 'core/index.html', {'message': f"Acesso autorizado para {name}. Abrindo portão..."})
-
-#     return render(request, 'core/index.html', {'message': 'Acesso negado. Rosto não reconhecido.'})
-
-
-def recognize_face(request):
-    recognizer, label_map = train_recognizer()
-    if recognizer is None:
-        return render(request, 'core/index.html', {'message': 'Nenhuma face cadastrada para reconhecimento.'})
-
+def recognize_face_and_hand(request):
+    load_model()
+    
+    if not id_to_name:
+        messages.error(request, "Nenhum rosto cadastrado")
+        return redirect('index')
+    
     cap = cv2.VideoCapture(0)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
-    success_count = {}
-    frame_count = 0
-    max_frames = 20
-
-    while frame_count < max_frames:
+    if not cap.isOpened():
+        messages.error(request, "Câmera indisponível")
+        return redirect('index')
+    
+    recognized_name = None
+    hand_state = None  # 'open' ou 'closed'
+    confidence_threshold = 80
+    
+    cv2.namedWindow('Verificação de Acesso', cv2.WINDOW_NORMAL)
+    
+    while recognized_name is None or hand_state is None:
         ret, frame = cap.read()
         if not ret:
-            break
-
+            continue
+        
+        # Processamento para reconhecimento facial
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-
+        faces = FACE_DETECTOR.detectMultiScale(gray, 1.3, 5)
+        
+        # Processamento para detecção de mãos (usa imagem colorida)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(rgb_frame)
+        
+        # Reconhecimento facial
+        face_detected = False
         for (x, y, w, h) in faces:
-            roi = gray[y:y+h, x:x+w]
-            label, confidence = recognizer.predict(roi)
-            print(f"[DEBUG] Frame {frame_count}: label={label}, confiança={confidence:.2f}")
-
-            if confidence < 45:
-                name = label_map[label]
-                success_count[name] = success_count.get(name, 0) + 1
-
-                # Se uma pessoa for reconhecida >=3 vezes, autoriza
-                if success_count[name] >= 3:
-                    cap.release()
-                    return render(request, 'core/index.html', {'message': f"Acesso autorizado para {name}. Abrindo portão..."})
-
-        frame_count += 1
-        cv2.waitKey(50)  # aguarda um pouco entre os frames
-
+            face_roi = cv2.resize(gray[y:y+h, x:x+w], (200, 200))
+            
+            id_, confidence = RECOGNIZER.predict(face_roi)
+            
+            if confidence < confidence_threshold and id_ in id_to_name:
+                recognized_name = id_to_name[id_]
+                color = (0, 255, 0)
+                text = recognized_name
+                face_detected = True
+            else:
+                color = (0, 0, 255)
+                text = "Desconhecido"
+            
+            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+            cv2.putText(frame, text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+        
+        # Detecção de mão
+        if results.multi_hand_landmarks and face_detected:
+            for hand_landmarks in results.multi_hand_landmarks:
+                # Desenha os landmarks da mão
+                mp_drawing.draw_landmarks(
+                    frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                
+                # Verifica se a mão está aberta
+                if is_hand_open(hand_landmarks):
+                    hand_state = 'open'
+                    hand_text = "Mao Aberta - Portao Liberado"
+                    hand_color = (0, 255, 0)
+                else:
+                    hand_state = 'closed'
+                    hand_text = "Mao Fechada - Portao Bloqueado"
+                    hand_color = (0, 0, 255)
+                
+                cv2.putText(frame, hand_text, (10, 60), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.7, hand_color, 2)
+        
+        cv2.imshow('Verificação de Acesso', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    
     cap.release()
-    return render(request, 'core/index.html', {'message': 'Acesso negado. Rosto não reconhecido.'})
+    cv2.destroyAllWindows()
+    
+    if recognized_name and hand_state == 'open':
+        # Redireciona para a tela de acesso liberado
+        return redirect('gate_open', user_name=recognized_name)
+    else:
+        if recognized_name:
+            messages.warning(request, "Acesso negado: mostre a mão aberta para liberar")
+        else:
+            messages.error(request, "Rosto não reconhecido")
+        return redirect('index')
+
+def gate_open(request, user_name):
+    context = {
+        'user_name': user_name,
+        'gate_open': True,
+        'message': "Acesso liberado - Mão aberta detectada"
+    }
+    return render(request, 'core/gate_open.html', context)
+
+def index(request):
+    # Pode receber contextos de outras views
+    context = {}
+    if 'recognized' in request.session:
+        context = {
+            'recognized': request.session['recognized'],
+            'user_name': request.session.get('user_name', ''),
+            'gate_open': request.session.get('gate_open', False)
+        }
+        # Limpa a sessão após usar
+        request.session.pop('recognized', None)
+        request.session.pop('user_name', None)
+        request.session.pop('gate_open', None)
+    
+    return render(request, 'core/index.html', context)
