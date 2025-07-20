@@ -37,6 +37,7 @@ ids = []
 name_to_id = {}
 id_to_name = {}
 id_count = 0
+TESTE = True #Flag para indicar uso ou não do ESP (True = sem ESP)
 
 
 def load_model():
@@ -209,14 +210,17 @@ def recognize_face_and_hand(request):
                 dedos = count_open_fingers(hand_landmarks)
                 abertura = min(dedos * 20, 100)
 
-                try:
-                    esp_ip = 'http://192.168.3.215'
-                    payload = {"abertura": abertura}
-                    headers = {"Content-Type": "application/json"}
-                    requests.post(f"{esp_ip}/abrir", json=payload, headers=headers, timeout=3)
-                except Exception as e:
-                    cap.release()
-                    return JsonResponse({"erro": f"Erro ao comunicar com ESP32: {e}"}, status=500)
+                if TESTE:
+                    print(f"[SIMULADO] Enviando para ESP32: abertura = {abertura}%")
+                else:
+                    try:
+                        esp_ip = 'http://192.168.3.215'
+                        payload = {"abertura": abertura}
+                        headers = {"Content-Type": "application/json"}
+                        requests.post(f"{esp_ip}/abrir", json=payload, headers=headers, timeout=3)
+                    except Exception as e:
+                        cap.release()
+                        return JsonResponse({"erro": f"Erro ao comunicar com ESP32: {e}"}, status=500)
 
                 request.session['recognized'] = True
                 request.session['user_name'] = recognized_name
