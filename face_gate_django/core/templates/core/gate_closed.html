@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reconhecimento Facial - Portão Fechado</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Reset e Estilos Base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Container Principal */
+        .container {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        /* Cabeçalho */
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.2rem;
+            font-weight: 600;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            border-radius: 3px;
+        }
+
+        /* Mensagens */
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-size: 1rem;
+            border-left: 4px solid;
+            display: block;
+        }
+        
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            border-left-color: #28a745;
+        }
+        
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545;
+        }
+        
+        .gate-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        /* Status do Portão */
+        .gate-status {
+            margin: 25px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        
+        .gate-open {
+            background-color: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .gate-closed {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+
+        /* Links/Navegação */
+        .nav-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: white;
+            background: linear-gradient(135deg, #3498db 0%, #2ecc71 100%);
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            display: inline-block;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .nav-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+            background: linear-gradient(135deg, #2ecc71 0%, #3498db 100%);
+        }
+
+        .nav-link:active {
+            transform: translateY(1px);
+        }
+
+        /* Responsividade */
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+            }
+            
+            .nav-links {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-link {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Face Gate</h1>
+        <h2>Bem-vindo ao Sistema de Reconhecimento</h2>
+        
+        <!-- Mensagem de status do portão -->
+        <div class="gate-message">
+            <h3>Portão fechado!</h3>
+            <p>O acesso não está liberado no momento.</p>
+        </div>
+        
+        <!-- Status atual do portão -->
+        <div class="gate-status gate-closed">
+            Status do portão: FECHADO
+        </div>
+        
+        <div class="nav-links">
+            <a href="/register/" class="nav-link">Cadastrar Rosto</a>
+            <a href="/recognize/" class="nav-link">Reconhecer</a>
+        </div>
+    </div>
+    
+    <script>
+        // Opcional: Fechar automaticamente a mensagem após 5 segundos
+        setTimeout(function() {
+            var messages = document.querySelectorAll('.message');
+            messages.forEach(function(message) {
+                message.style.display = 'none';
+            });
+        }, 10000);
+    </script>
+</body>
+</html>

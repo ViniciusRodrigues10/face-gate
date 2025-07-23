@@ -37,7 +37,7 @@ ids = []
 name_to_id = {}
 id_to_name = {}
 id_count = 0
-TESTE = True #Flag para indicar uso ou não do ESP (True = sem ESP)
+TESTE = False #Flag para indicar uso ou não do ESP (True = sem ESP)
 
 
 def load_model():
@@ -63,24 +63,30 @@ def preprocess_face(face_img):
     return cv2.equalizeHist(gray)
 
 
-def count_open_fingers(landmarks):
-    tip_ids = [4, 8, 12, 16, 20]  # Polegar, Indicador, Médio, Anelar, Mindinho
-    pip_ids = [2, 6, 10, 14, 18]
-
+def count_open_fingers(landmarks, hand_label="Right"):
     fingers = []
-    if landmarks.landmark[tip_ids[0]].x < landmarks.landmark[pip_ids[0]].x:
-        fingers.append(1)
-    else:
-        fingers.append(0)
 
-    for i in range(1, 5):
-        if landmarks.landmark[tip_ids[i]].y < landmarks.landmark[pip_ids[i]].y:
+    if hand_label == "Right":
+        if landmarks.landmark[4].x < landmarks.landmark[3].x:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+    else: 
+        if landmarks.landmark[4].x > landmarks.landmark[3].x:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+
+    tips_ids = [8, 12, 16, 20]
+    pip_ids = [6, 10, 14, 18]
+
+    for tip, pip in zip(tips_ids, pip_ids):
+        if landmarks.landmark[tip].y < landmarks.landmark[pip].y:
             fingers.append(1)
         else:
             fingers.append(0)
 
     return sum(fingers)
-
 
 def register_face(request):
     global id_count
@@ -214,7 +220,7 @@ def recognize_face_and_hand(request):
                     print(f"[SIMULADO] Enviando para ESP32: abertura = {abertura}%")
                 else:
                     try:
-                        esp_ip = 'http://192.168.3.215'
+                        esp_ip = 'http://192.168.137.60'
                         payload = {"abertura": abertura}
                         headers = {"Content-Type": "application/json"}
                         requests.post(f"{esp_ip}/abrir", json=payload, headers=headers, timeout=3)
@@ -235,7 +241,8 @@ def recognize_face_and_hand(request):
                     return redirect('gate_open', user_name=recognized_name)
                 else:
                     if recognized_name:
-                        messages.warning(request, "Acesso negado: mostre a mão aberta para liberar")
+                        # messages.warning(request, "Acesso negado: mostre a mão aberta para liberar")
+                        return render(request, 'core/gate_closed.html')
                     else:
                         messages.error(request, "Rosto não reconhecido")
                     return redirect('index')
