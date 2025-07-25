@@ -85,15 +85,11 @@ Este projeto propõe uma solução moderna e sem contato para controlar o acesso
 
 | Item | Quantidade | Finalidade |
 |------|------------|------------|
-| Arduino + processador externo | 1 | Controle principal |
-| Câmera USB HD | 1 | Captura facial |
-| Sensor PIR | 1 | Detecção de presença |
-| Motor DC com redutor / Servo | 1 | Movimento do portão |
-| Driver L298N | 1 | Controle do motor |
-| LEDs (verde/vermelho) | 1 de cada | Indicação de acesso |
+| ESP32 | 1 | Controle principal |
+| Câmera Webcam | 1 | Captura facial |
+| Servo motor | 1 | Movimento do portão |
+| LEDs | 1 | Indicação de reconhecimento facial |
 | Display LCD 16x2 (opcional I2C) | 1 | Feedback textual |
-| Sensores de fim de curso | 2 | Posição do portão |
-| Botão de emergência | 1 | Trava de segurança |
 | Protoboard e jumpers | - | Prototipagem |
 | Fonte 5V/12V | 1 | Alimentação |
 
@@ -105,8 +101,7 @@ Este projeto propõe uma solução moderna e sem contato para controlar o acesso
 - **MediaPipe / OpenCV (Hands)** – Detecção de gestos  
 - **Python** – Linguagem principal  
 - **VSCode / Jupyter** – Ambiente de desenvolvimento  
-- **Multímetro / Ferro de solda** – Testes e montagem  
-- **Internet (Wi-Fi/Ethernet)** – Para notificações (opcional)
+- **Internet (Wi-Fi/Ethernet)** – Para notificações
 
 ---
 
@@ -124,10 +119,3 @@ Este projeto propõe uma solução moderna e sem contato para controlar o acesso
 Projeto acadêmico desenvolvido no Instituto Federal da Paraíba (IFPB).
 
 ---
-
-## 📄 Licença
-
-Este projeto é de uso educacional e está sob a licença MIT. Sinta-se à vontade para estudar, adaptar e reutilizar, com os devidos créditos aos autores.
-
----
-
